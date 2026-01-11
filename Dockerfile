@@ -5,13 +5,14 @@ RUN pip install uv
 # Builder stage for installing dependencies
 FROM base as builder
 WORKDIR /app
-COPY pyproject.toml uv.lock* ./
-RUN uv pip install --system -r pyproject.toml
+COPY pyproject.toml ./
+RUN uv venv
+RUN . .venv/bin/activate && uv pip install .
 
 # Final stage
 FROM python:3.13-slim as final
 WORKDIR /app
-COPY --from=builder /root/.cache/uv /root/.cache/uv
+COPY --from=builder /app/.venv ./.venv
 COPY . .
 
-CMD ["python", "main.py"]
+CMD [".venv/bin/python", "main.py"]
