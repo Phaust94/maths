@@ -9,5 +9,3 @@ __pycache__
 .dockerignore
 Dockerfile
 README.md
-uv.lock
-pyproject.toml

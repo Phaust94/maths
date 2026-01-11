@@ -6,7 +6,7 @@ RUN pip install uv
 FROM base as builder
 WORKDIR /app
 COPY pyproject.toml uv.lock* ./
-RUN uv pip install -r pyproject.toml
+RUN uv pip install --system -r pyproject.toml
 
 # Final stage
 FROM python:3.13-slim as final
