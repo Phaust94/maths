@@ -174,6 +174,9 @@ async def resume_or_handle_answer(update: Update, context: ContextTypes.DEFAULT_
 
             if uncompleted_task:
                 await handle_answer(update, context)
+            else:
+                await update.message.reply_text("Nie masz aktywnego zadania. Wciśnij /go")
+                return
             # If there is no current try, do nothing and wait for /go
     except psycopg2.Error as e:
         logger.error(f"Database error: {e}")
