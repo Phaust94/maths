@@ -18,7 +18,7 @@ add primary key (date, number)
 CREATE TABLE tries (
     date DATE,
     number INT,
-    user_id INT,
+    user_id BIGINT,
     completed Bool
 );
 

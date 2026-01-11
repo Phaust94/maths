@@ -5,11 +5,11 @@ import os
 import random
 import psycopg2
 
-random.seed(42)
+# random.seed(43)
 
 # Configuration Constants
-DAYS_FROM = 0
-DAYS_TO = 0
+DAYS_FROM = 1
+DAYS_TO = 1
 NUM_EASY_PROBLEMS = 5
 NUM_MEDIUM_PROBLEMS = 3
 NUM_HARD_PROBLEMS = 2
@@ -50,8 +50,8 @@ def generate_medium_problem():
 
 def generate_hard_problem():
     """Generates a hard problem (X * Y +/- Z * W)."""
-    x = random.randint(1, 20)
-    y = random.randint(1, 20)
+    x = random.randint(1, 10)
+    y = random.randint(1, 10)
     z = random.randint(1, 10)
     w = random.randint(1, 10)
     
@@ -87,44 +87,50 @@ def main():
         cur = conn.cursor()
 
         today = datetime.date.today()
+        total_tasks_per_day = NUM_EASY_PROBLEMS + NUM_MEDIUM_PROBLEMS + NUM_HARD_PROBLEMS
+
         for day_offset in range(DAYS_FROM, DAYS_TO + 1):
             current_date = today + datetime.timedelta(days=day_offset)
+            print(f"--- Generating problems for {current_date} ---")
+            
             number = 0
             
-            # Easy problems
-            for _ in range(NUM_EASY_PROBLEMS):
-                exp_string, answer, rpn_exp = generate_easy_problem()
-                cur.execute(
-                    "INSERT INTO daily (date, number, exp_string, answer, exp) VALUES (%s, %s, %s, %s, %s)",
-                    (current_date, number, exp_string, answer, rpn_exp)
-                )
-                number += 1
-            
-            # Medium problems
-            for _ in range(NUM_MEDIUM_PROBLEMS):
-                exp_string, answer, rpn_exp = generate_medium_problem()
-                cur.execute(
-                    "INSERT INTO daily (date, number, exp_string, answer, exp) VALUES (%s, %s, %s, %s, %s)",
-                    (current_date, number, exp_string, answer, rpn_exp)
-                )
-                number += 1
+            problem_generators = {
+                "easy": (generate_easy_problem, NUM_EASY_PROBLEMS),
+                "medium": (generate_medium_problem, NUM_MEDIUM_PROBLEMS),
+                "hard": (generate_hard_problem, NUM_HARD_PROBLEMS),
+            }
 
-            # Hard problems
-            for _ in range(NUM_HARD_PROBLEMS):
-                exp_string, answer, rpn_exp = generate_hard_problem()
-                cur.execute(
-                    "INSERT INTO daily (date, number, exp_string, answer, exp) VALUES (%s, %s, %s, %s, %s)",
-                    (current_date, number, exp_string, answer, rpn_exp)
-                )
-                number += 1
+            for level, (generator, count) in problem_generators.items():
+                for _ in range(count):
+                    while True:
+                        exp_string, answer, rpn_exp = generator()
+                        
+                        print(f"\nDate: {current_date}")
+                        print(f"Problem: {number + 1} of {total_tasks_per_day} ({level})")
+                        print(f"Expression: {exp_string}")
+                        
+                        user_input = input("Press Enter to approve, or enter any text to reroll: ")
+                        
+                        if user_input == "":
+                            cur.execute(
+                                "INSERT INTO daily (date, number, exp_string, answer, exp) VALUES (%s, %s, %s, %s, %s)",
+                                (current_date, number, exp_string, answer, rpn_exp)
+                            )
+                            number += 1
+                            break
+                        else:
+                            print("Rerolling...")
         
         conn.commit()
         cur.close()
         conn.close()
-        print("Successfully generated and inserted problems.")
+        print("\nSuccessfully generated and inserted all problems.")
 
     except psycopg2.Error as e:
-        print(f"Database error: {e}")
+        print(f"\nDatabase error: {e}")
+    except (KeyboardInterrupt, EOFError):
+        print("\nExiting.")
 
 if __name__ == "__main__":
     main()
