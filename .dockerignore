@@ -1,0 +1,13 @@
+.git
+.idea
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+.dockerignore
+Dockerfile
+README.md
+uv.lock
+pyproject.toml
