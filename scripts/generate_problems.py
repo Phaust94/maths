@@ -8,10 +8,10 @@ import psycopg2
 random.seed(42)
 
 # Configuration Constants
-DAYS_FROM = 1
-DAYS_TO = 1
-NUM_EASY_PROBLEMS = 7
-NUM_MEDIUM_PROBLEMS = 5
+DAYS_FROM = 0
+DAYS_TO = 0
+NUM_EASY_PROBLEMS = 5
+NUM_MEDIUM_PROBLEMS = 3
 NUM_HARD_PROBLEMS = 2
 
 def generate_easy_problem():
@@ -24,13 +24,28 @@ def generate_easy_problem():
     return exp_string, answer, json.dumps(rpn_exp)
 
 def generate_medium_problem():
-    """Generates a medium problem (X * Y + Z)."""
+    """Generates a medium problem (X * Y + Z or X * Y - Z)."""
     x = random.randint(1, 10)
     y = random.randint(1, 10)
     z = random.randint(1, 100)
-    exp_string = f"{x} * {y} + {z}"
-    answer = x * y + z
-    rpn_exp = [f"num({x})", f"num({y})", "op(mul)", f"num({z})", "op(add)"]
+    
+    term1 = x * y
+    
+    if random.choice([True, False]): # True for addition, False for subtraction
+        exp_string = f"{x} * {y} + {z}"
+        answer = term1 + z
+        rpn_exp = [f"num({x})", f"num({y})", "op(mul)", f"num({z})", "op(add)"]
+    else:
+        # Subtraction, ensure non-negative result
+        if term1 < z:
+            exp_string = f"{z} - {x} * {y}"
+            answer = z - term1
+            rpn_exp = [f"num({z})", f"num({x})", f"num({y})", "op(mul)", "op(sub)"]
+        else:
+            exp_string = f"{x} * {y} - {z}"
+            answer = term1 - z
+            rpn_exp = [f"num({x})", f"num({y})", "op(mul)", f"num({z})", "op(sub)"]
+        
     return exp_string, answer, json.dumps(rpn_exp)
 
 def generate_hard_problem():
