@@ -8,16 +8,16 @@ import psycopg2
 # random.seed(43)
 
 # Configuration Constants
-DAYS_FROM = 1
-DAYS_TO = 1
+DAYS_FROM = 2
+DAYS_TO = 10
 NUM_EASY_PROBLEMS = 5
 NUM_MEDIUM_PROBLEMS = 3
 NUM_HARD_PROBLEMS = 2
 
 def generate_easy_problem():
     """Generates an easy problem (X * Y)."""
-    x = random.randint(1, 10)
-    y = random.randint(1, 10)
+    x = random.randint(2, 10)
+    y = random.randint(2, 10)
     exp_string = f"{x} * {y}"
     answer = x * y
     rpn_exp = [f"num({x})", f"num({y})", "op(mul)"]
