@@ -54,6 +54,14 @@ async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     try:
         with conn.cursor() as cur:
             today = datetime.date.today()
+
+            if 'total_tasks' not in context.user_data:
+                cur.execute("SELECT COUNT(*) FROM daily WHERE date = %s", (today,))
+                total_tasks = cur.fetchone()[0]
+                context.user_data['total_tasks'] = total_tasks
+            else:
+                total_tasks = context.user_data['total_tasks']
+
             cur.execute("SELECT number FROM tries WHERE user_id = %s AND date = %s AND completed = TRUE ORDER BY number DESC LIMIT 1", (user_id, today))
             last_completed = cur.fetchone()
             
@@ -61,10 +69,7 @@ async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             if last_completed:
                 next_number = last_completed[0] + 1
 
-            cur.execute("SELECT MAX(number) FROM daily WHERE date = %s", (today,))
-            max_daily_number = cur.fetchone()[0]
-
-            if last_completed and last_completed[0] == max_daily_number:
+            if last_completed and last_completed[0] == total_tasks -1:
                 await update.message.reply_text("Gratulacje! Ukończyłeś wszystkie zadania na dzisiaj!")
                 admin_user_list = os.environ.get('ADMIN_USER_LIST', '').split(',')
                 for admin_id in admin_user_list:
@@ -85,7 +90,7 @@ async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             cur.execute("INSERT INTO tries (date, number, user_id, completed) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (today, next_number, user_id, False))
             conn.commit()
 
-            await update.message.reply_text(f"Rozwiąż następujące zadanie: {exp_string}")
+            await update.message.reply_text(f"{next_number + 1} z {total_tasks}\n\nRozwiąż następujące zadanie: {exp_string}")
 
     except psycopg2.Error as e:
         logger.error(f"Database error: {e}")
@@ -126,22 +131,7 @@ async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         del context.user_data['current_exercise']
         await go_command(update, context)
     else:
-        conn = get_db_connection()
-        if not conn:
-            await update.message.reply_text("Błąd połączenia z bazą danych.")
-            return
-        try:
-            with conn.cursor() as cur:
-                cur.execute("SELECT exp_string FROM daily WHERE date = %s AND number = %s", (today, exercise_number))
-                exercise = cur.fetchone()
-                if exercise:
-                    await update.message.reply_text(f"Zła odpowiedź. Spróbuj jeszcze raz: {exercise[0]}")
-        except psycopg2.Error as e:
-            logger.error(f"Database error: {e}")
-            await update.message.reply_text("Wystąpił błąd bazy danych.")
-        finally:
-            if conn:
-                conn.close()
+        await update.message.reply_text("Zła odpowiedź. Spróbuj jeszcze raz.")
 
 def main() -> None:
     """Start the bot."""
