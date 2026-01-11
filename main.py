@@ -55,21 +55,24 @@ async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         with conn.cursor() as cur:
             today = datetime.date.today()
 
-            if 'total_tasks' not in context.user_data:
-                cur.execute("SELECT COUNT(*) FROM daily WHERE date = %s", (today,))
-                total_tasks = cur.fetchone()[0]
-                context.user_data['total_tasks'] = total_tasks
+            # Get the total number of tasks for today
+            cur.execute("SELECT COUNT(*) FROM daily WHERE date = %s", (today,))
+            total_tasks = cur.fetchone()[0]
+
+            # Find the smallest 'number' that is not completed for this user and date
+            cur.execute(
+                "SELECT d.number FROM daily d LEFT JOIN tries t ON d.date = t.date AND d.number = t.number AND t.user_id = %s WHERE d.date = %s AND (t.completed IS NULL OR t.completed = FALSE) ORDER BY d.number ASC LIMIT 1",
+                (user_id, today)
+            )
+            next_uncompleted_task = cur.fetchone()
+
+            if next_uncompleted_task:
+                next_number = next_uncompleted_task[0]
             else:
-                total_tasks = context.user_data['total_tasks']
+                # All tasks are completed for today or no tasks exist
+                next_number = total_tasks # Set to total_tasks to trigger completion message below
 
-            cur.execute("SELECT number FROM tries WHERE user_id = %s AND date = %s AND completed = TRUE ORDER BY number DESC LIMIT 1", (user_id, today))
-            last_completed = cur.fetchone()
-            
-            next_number = 0
-            if last_completed:
-                next_number = last_completed[0] + 1
-
-            if last_completed and last_completed[0] == total_tasks -1:
+            if next_number >= total_tasks:
                 await update.message.reply_text("Gratulacje! Ukończyłeś wszystkie zadania na dzisiaj!")
                 admin_user_list = os.environ.get('ADMIN_USER_LIST', '').split(',')
                 for admin_id in admin_user_list:
@@ -81,13 +84,17 @@ async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             exercise = cur.fetchone()
 
             if not exercise:
-                await update.message.reply_text("Gratulacje! Ukończyłeś wszystkie zadania na dzisiaj!")
+                # This case should ideally not be reached if next_uncompleted_task was found
+                await update.message.reply_text("Wystąpił problem z pobraniem zadania.")
                 return
 
             exp_string, answer = exercise
-            context.user_data['current_exercise'] = {'number': next_number, 'answer': answer}
             
-            cur.execute("INSERT INTO tries (date, number, user_id, completed) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (today, next_number, user_id, False))
+            # Record the attempt if it doesn't exist, or update if it does (for retries)
+            cur.execute(
+                "INSERT INTO tries (date, number, user_id, completed) VALUES (%s, %s, %s, FALSE) ON CONFLICT (date, number, user_id) DO NOTHING",
+                (today, next_number, user_id)
+            )
             conn.commit()
 
             await update.message.reply_text(f"{next_number + 1} z {total_tasks}\n\nRozwiąż następujące zadanie: {exp_string}")
@@ -102,52 +109,78 @@ async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 @whitelisted
 async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handles user's answers to maths problems."""
-    if 'current_exercise' not in context.user_data:
-        return
-
-    user_answer = update.message.text
-    correct_answer = str(context.user_data['current_exercise']['answer'])
-    exercise_number = context.user_data['current_exercise']['number']
     user_id = update.effective_user.id
     today = datetime.date.today()
+    user_answer = update.message.text
+    
+    conn = get_db_connection()
+    if not conn:
+        await update.message.reply_text("Błąd połączenia z bazą danych.")
+        return
+        
+    try:
+        with conn.cursor() as cur:
+            # Find the current uncompleted task
+            cur.execute(
+                "SELECT t.number, d.answer, d.exp_string FROM tries t JOIN daily d ON t.date = d.date AND t.number = d.number WHERE t.user_id = %s AND t.date = %s AND t.completed = FALSE ORDER BY t.number DESC LIMIT 1",
+                (user_id, today)
+            )
+            current_problem_data = cur.fetchone()
 
-    if user_answer == correct_answer:
-        conn = get_db_connection()
-        if not conn:
-            await update.message.reply_text("Błąd połączenia z bazą danych.")
-            return
-        try:
-            with conn.cursor() as cur:
+            if not current_problem_data:
+                # No current uncompleted problem, possibly already completed or not started
+                return
+
+            exercise_number, correct_answer_from_db, exp_string = current_problem_data
+            correct_answer = str(correct_answer_from_db)
+
+            cur.execute("SELECT COUNT(*) FROM daily WHERE date = %s", (today,))
+            total_tasks = cur.fetchone()[0]
+
+
+            if user_answer == correct_answer:
                 cur.execute("UPDATE tries SET completed = TRUE WHERE user_id = %s AND date = %s AND number = %s", (user_id, today, exercise_number))
                 conn.commit()
-        except psycopg2.Error as e:
-            logger.error(f"Database error: {e}")
-            await update.message.reply_text("Wystąpił błąd bazy danych.")
-        finally:
-            if conn:
-                conn.close()
+                
+                await update.message.reply_text("✅✅✅Poprawna odpowiedź!")
+                await go_command(update, context) # Prompt the next question
+            else:
+                await update.message.reply_text(f"❌❌❌\nZła odpowiedź. Spróbuj jeszcze raz.\n\n{exercise_number + 1} z {total_tasks}\n\nRozwiąż następujące zadanie: {exp_string}")
+
+    except psycopg2.Error as e:
+        logger.error(f"Database error: {e}")
+        await update.message.reply_text("Wystąpił błąd bazy danych.")
+    finally:
+        if conn:
+            conn.close()
+
+
+@whitelisted
+async def resume_or_handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Resumes a challenge or handles an answer."""
+    user_id = update.effective_user.id
+    today = datetime.date.today()
+    
+    conn = get_db_connection()
+    if not conn:
+        await update.message.reply_text("Błąd połączenia z bazą danych.")
+        return
         
-        await update.message.reply_text("✅✅✅Poprawna odpowiedź!")
-        del context.user_data['current_exercise']
-        await go_command(update, context)
-    else:
-        conn = get_db_connection()
-        if not conn:
-            await update.message.reply_text("Błąd połączenia z bazą danych.")
-            return
-        try:
-            with conn.cursor() as cur:
-                cur.execute("SELECT exp_string FROM daily WHERE date = %s AND number = %s", (today, exercise_number))
-                exercise = cur.fetchone()
-                if exercise:
-                    total_tasks = context.user_data.get('total_tasks', 0)
-                    await update.message.reply_text(f"❌❌❌\nZła odpowiedź. Spróbuj jeszcze raz.\n\n{exercise_number + 1} z {total_tasks}\n\nRozwiąż następujące zadanie: {exercise[0]}")
-        except psycopg2.Error as e:
-            logger.error(f"Database error: {e}")
-            await update.message.reply_text("Wystąpił błąd bazy danych.")
-        finally:
-            if conn:
-                conn.close()
+    try:
+        with conn.cursor() as cur:
+            # Check if there's any uncompleted task for the user today
+            cur.execute("SELECT number FROM tries WHERE user_id = %s AND date = %s AND completed = FALSE LIMIT 1", (user_id, today))
+            uncompleted_task = cur.fetchone()
+
+            if uncompleted_task:
+                await handle_answer(update, context)
+            # If there is no current try, do nothing and wait for /go
+    except psycopg2.Error as e:
+        logger.error(f"Database error: {e}")
+        await update.message.reply_text("Wystąpił błąd bazy danych.")
+    finally:
+        if conn:
+            conn.close()
 
 def main() -> None:
     """Start the bot."""
@@ -172,7 +205,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("go", go_command))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_answer))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, resume_or_handle_answer))
 
     logger.info("Bot started polling...")
     application.run_polling()
