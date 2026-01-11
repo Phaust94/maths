@@ -127,11 +127,27 @@ async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             if conn:
                 conn.close()
         
-        await update.message.reply_text("Poprawna odpowiedź!")
+        await update.message.reply_text("✅✅✅Poprawna odpowiedź!")
         del context.user_data['current_exercise']
         await go_command(update, context)
     else:
-        await update.message.reply_text("Zła odpowiedź. Spróbuj jeszcze raz.")
+        conn = get_db_connection()
+        if not conn:
+            await update.message.reply_text("Błąd połączenia z bazą danych.")
+            return
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT exp_string FROM daily WHERE date = %s AND number = %s", (today, exercise_number))
+                exercise = cur.fetchone()
+                if exercise:
+                    total_tasks = context.user_data.get('total_tasks', 0)
+                    await update.message.reply_text(f"❌❌❌\nZła odpowiedź. Spróbuj jeszcze raz.\n\n{exercise_number + 1} z {total_tasks}\n\nRozwiąż następujące zadanie: {exercise[0]}")
+        except psycopg2.Error as e:
+            logger.error(f"Database error: {e}")
+            await update.message.reply_text("Wystąpił błąd bazy danych.")
+        finally:
+            if conn:
+                conn.close()
 
 def main() -> None:
     """Start the bot."""
