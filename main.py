@@ -4,6 +4,7 @@ import psycopg2
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import datetime
+from auth import whitelisted
 
 # Enable logging
 logging.basicConfig(
@@ -39,9 +40,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """Sends a message when the command /help is issued."""
     await update.message.reply_text("Naciśnij /start, aby zacząć.")
 
+@whitelisted
 async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Starts a new maths challenge."""
-    user_id = update.effective_user.id
+    user = update.effective_user
+    user_id = user.id
     conn = get_db_connection()
     if not conn:
         await update.message.reply_text("Błąd połączenia z bazą danych.")
@@ -57,6 +60,17 @@ async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             if last_completed:
                 next_number = last_completed[0] + 1
 
+            cur.execute("SELECT MAX(number) FROM daily WHERE date = %s", (today,))
+            max_daily_number = cur.fetchone()[0]
+
+            if last_completed and last_completed[0] == max_daily_number:
+                await update.message.reply_text("Gratulacje! Ukończyłeś wszystkie zadania na dzisiaj!")
+                admin_user_list = os.environ.get('ADMIN_USER_LIST', '').split(',')
+                for admin_id in admin_user_list:
+                    if admin_id:
+                        await context.bot.send_message(chat_id=admin_id, text=f"Użytkownik {user.mention_html()} ukończył wszystkie zadania na dzisiaj.")
+                return
+
             cur.execute("SELECT exp_string, answer FROM daily WHERE date = %s AND number = %s", (today, next_number))
             exercise = cur.fetchone()
 
@@ -67,7 +81,7 @@ async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             exp_string, answer = exercise
             context.user_data['current_exercise'] = {'number': next_number, 'answer': answer}
             
-            cur.execute("INSERT INTO tries (date, number, user_id, completed) VALUES (%s, %s, %s, %s)", (today, next_number, user_id, False))
+            cur.execute("INSERT INTO tries (date, number, user_id, completed) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING", (today, next_number, user_id, False))
             conn.commit()
 
             await update.message.reply_text(f"Rozwiąż następujące zadanie: {exp_string}")
@@ -79,6 +93,7 @@ async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         if conn:
             conn.close()
 
+@whitelisted
 async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handles user's answers to maths problems."""
     if 'current_exercise' not in context.user_data:
@@ -138,6 +153,12 @@ def main() -> None:
     if not all(os.environ.get(var) for var in db_vars):
         logger.error("Database environment variables not set.")
         exit(1)
+    
+    if not os.environ.get('USER_WHITELIST'):
+        logger.warning("USER_WHITELIST environment variable not set. No users will be able to use the bot.")
+    
+    if not os.environ.get('ADMIN_USER_LIST'):
+        logger.warning("ADMIN_USER_LIST environment variable not set. No admins will receive notifications.")
 
     application = Application.builder().token(token).build()
 
