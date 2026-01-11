@@ -1,0 +1,8 @@
+services:
+  maths:
+    build:
+      context: .
+      dockerfile: Dockerfile  # Point this to your custom Dockerfile
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Include other necessary settings like ports/env here
