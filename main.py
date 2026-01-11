@@ -2,6 +2,7 @@ import logging
 import os
 import psycopg2
 from telegram import Update
+from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import datetime
 from auth import whitelisted
@@ -68,7 +69,7 @@ async def go_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
                 admin_user_list = os.environ.get('ADMIN_USER_LIST', '').split(',')
                 for admin_id in admin_user_list:
                     if admin_id:
-                        await context.bot.send_message(chat_id=admin_id, text=f"Użytkownik {user.mention_html()} ukończył wszystkie zadania na dzisiaj.")
+                        await context.bot.send_message(chat_id=admin_id, text=f"Użytkownik {user.mention_html()} ukończył wszystkie zadania na dzisiaj.", parse_mode=ParseMode.HTML)
                 return
 
             cur.execute("SELECT exp_string, answer FROM daily WHERE date = %s AND number = %s", (today, next_number))
