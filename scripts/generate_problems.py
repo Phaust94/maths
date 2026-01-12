@@ -8,97 +8,111 @@ import psycopg2
 # random.seed(43)
 
 # Configuration Constants
-DAYS_FROM = 2
+DAYS_FROM = 1
 DAYS_TO = 10
-NUM_EASY_PROBLEMS = 5
-NUM_MEDIUM_PROBLEMS = 3
-NUM_HARD_PROBLEMS = 2
+NUM_EASY_PROBLEMS = 2
+NUM_MEDIUM_PROBLEMS = 2
+NUM_HARD_PROBLEMS = 4
 NUM_DIV_EASY_PROBLEMS = 2
-NUM_DIV_HARD_PROBLEMS = 2
+NUM_DIV_HARD_PROBLEMS = 4
 
 def generate_div_hard_problem():
     """Generates a hard division problem (X * Y + Z / W)."""
-    x = random.randint(2, 10)
-    y = random.randint(2, 10)
-    w = random.randint(2, 10)
-    res = random.randint(2, 10)
-    z = w * res
-    
-    exp_string = f"{x} * {y} + {z} / {w}"
-    answer = x * y + res
-    rpn_exp = [f"num({x})", f"num({y})", "op(mul)", f"num({z})", f"num({w})", "op(div)", "op(add)"]
-    return exp_string, answer, json.dumps(rpn_exp)
+    while True:
+        x = random.randint(2, 10)
+        y = random.randint(2, 10)
+        w = random.randint(2, 10)
+        res = random.randint(2, 10)
+        z = w * res
+        
+        answer = x * y + res
+        if answer <= 100:
+            exp_string = f"{x} * {y} + {z} / {w}"
+            rpn_exp = [f"num({x})", f"num({y})", "op(mul)", f"num({z})", f"num({w})", "op(div)", "op(add)"]
+            return exp_string, answer, json.dumps(rpn_exp)
 
 def generate_div_easy_problem():
     """Generates an easy division problem (X / Y)."""
-    y = random.randint(2, 10)
-    res = random.randint(2, 10)
-    x = y * res
-    exp_string = f"{x} / {y}"
-    answer = res
-    rpn_exp = [f"num({x})", f"num({y})", "op(div)"]
-    return exp_string, answer, json.dumps(rpn_exp)
+    while True:
+        y = random.randint(2, 10)
+        res = random.randint(2, 10)
+        x = y * res
+        answer = res
+        if answer <= 100:
+            exp_string = f"{x} / {y}"
+            rpn_exp = [f"num({x})", f"num({y})", "op(div)"]
+            return exp_string, answer, json.dumps(rpn_exp)
 
 def generate_easy_problem():
     """Generates an easy problem (X * Y)."""
-    x = random.randint(2, 10)
-    y = random.randint(2, 10)
-    exp_string = f"{x} * {y}"
-    answer = x * y
-    rpn_exp = [f"num({x})", f"num({y})", "op(mul)"]
-    return exp_string, answer, json.dumps(rpn_exp)
+    while True:
+        x = random.randint(2, 10)
+        y = random.randint(2, 10)
+        answer = x * y
+        if answer <= 100:
+            exp_string = f"{x} * {y}"
+            rpn_exp = [f"num({x})", f"num({y})", "op(mul)"]
+            return exp_string, answer, json.dumps(rpn_exp)
 
 def generate_medium_problem():
     """Generates a medium problem (X * Y + Z or X * Y - Z)."""
-    x = random.randint(1, 10)
-    y = random.randint(1, 10)
-    z = random.randint(1, 100)
-    
-    term1 = x * y
-    
-    if random.choice([True, False]): # True for addition, False for subtraction
-        exp_string = f"{x} * {y} + {z}"
-        answer = term1 + z
-        rpn_exp = [f"num({x})", f"num({y})", "op(mul)", f"num({z})", "op(add)"]
-    else:
-        # Subtraction, ensure non-negative result
-        if term1 < z:
-            exp_string = f"{z} - {x} * {y}"
-            answer = z - term1
-            rpn_exp = [f"num({z})", f"num({x})", f"num({y})", "op(mul)", "op(sub)"]
-        else:
-            exp_string = f"{x} * {y} - {z}"
-            answer = term1 - z
-            rpn_exp = [f"num({x})", f"num({y})", "op(mul)", f"num({z})", "op(sub)"]
+    while True:
+        x = random.randint(1, 10)
+        y = random.randint(1, 10)
+        z = random.randint(1, 100)
         
-    return exp_string, answer, json.dumps(rpn_exp)
+        term1 = x * y
+        
+        if random.choice([True, False]): # True for addition, False for subtraction
+            answer = term1 + z
+            if answer <= 100:
+                exp_string = f"{x} * {y} + {z}"
+                rpn_exp = [f"num({x})", f"num({y})", "op(mul)", f"num({z})", "op(add)"]
+                return exp_string, answer, json.dumps(rpn_exp)
+        else:
+            # Subtraction, ensure non-negative result
+            if term1 < z:
+                answer = z - term1
+                if answer <= 100:
+                    exp_string = f"{z} - {x} * {y}"
+                    rpn_exp = [f"num({z})", f"num({x})", f"num({y})", "op(mul)", "op(sub)"]
+                    return exp_string, answer, json.dumps(rpn_exp)
+            else:
+                answer = term1 - z
+                if answer <= 100:
+                    exp_string = f"{x} * {y} - {z}"
+                    rpn_exp = [f"num({x})", f"num({y})", "op(mul)", f"num({z})", "op(sub)"]
+                    return exp_string, answer, json.dumps(rpn_exp)
 
 def generate_hard_problem():
     """Generates a hard problem (X * Y +/- Z * W)."""
-    x = random.randint(1, 10)
-    y = random.randint(1, 10)
-    z = random.randint(1, 10)
-    w = random.randint(1, 10)
-    
-    if random.choice([True, False]):
-        # Addition
-        exp_string = f"{x} * {y} + {z} * {w}"
-        answer = x * y + z * w
-        rpn_exp = [f"num({x})", f"num({y})", "op(mul)", f"num({z})", f"num({w})", "op(mul)", "op(add)"]
-    else:
-        # Subtraction, ensuring non-negative result
-        term1 = x * y
-        term2 = z * w
-        if term1 < term2:
-            x, z = z, x
-            y, w = w, y
-            term1, term2 = term2, term1
-            
-        exp_string = f"{x} * {y} - {z} * {w}"
-        answer = term1 - term2
-        rpn_exp = [f"num({x})", f"num({y})", "op(mul)", f"num({z})", f"num({w})", "op(mul)", "op(sub)"]
+    while True:
+        x = random.randint(1, 10)
+        y = random.randint(1, 10)
+        z = random.randint(1, 10)
+        w = random.randint(1, 10)
         
-    return exp_string, answer, json.dumps(rpn_exp)
+        if random.choice([True, False]):
+            # Addition
+            answer = x * y + z * w
+            if answer <= 100:
+                exp_string = f"{x} * {y} + {z} * {w}"
+                rpn_exp = [f"num({x})", f"num({y})", "op(mul)", f"num({z})", f"num({w})", "op(mul)", "op(add)"]
+                return exp_string, answer, json.dumps(rpn_exp)
+        else:
+            # Subtraction, ensuring non-negative result
+            term1 = x * y
+            term2 = z * w
+            if term1 < term2:
+                x, z = z, x
+                y, w = w, y
+                term1, term2 = term2, term1
+                
+            answer = term1 - term2
+            if answer <= 100:
+                exp_string = f"{x} * {y} - {z} * {w}"
+                rpn_exp = [f"num({x})", f"num({y})", "op(mul)", f"num({z})", f"num({w})", "op(mul)", "op(sub)"]
+                return exp_string, answer, json.dumps(rpn_exp)
 
 def main():
     try:
@@ -137,7 +151,8 @@ def main():
                         print(f"Problem: {number + 1} of {total_tasks_per_day} ({level})")
                         print(f"Expression: {exp_string}")
                         
-                        user_input = input("Press Enter to approve, or enter any text to reroll: ")
+                        # user_input = input("Press Enter to approve, or enter any text to reroll: ")
+                        user_input = ""
                         
                         if user_input == "":
                             cur.execute(
