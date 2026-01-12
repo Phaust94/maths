@@ -13,6 +13,31 @@ DAYS_TO = 10
 NUM_EASY_PROBLEMS = 5
 NUM_MEDIUM_PROBLEMS = 3
 NUM_HARD_PROBLEMS = 2
+NUM_DIV_EASY_PROBLEMS = 2
+NUM_DIV_HARD_PROBLEMS = 2
+
+def generate_div_hard_problem():
+    """Generates a hard division problem (X * Y + Z / W)."""
+    x = random.randint(2, 10)
+    y = random.randint(2, 10)
+    w = random.randint(2, 10)
+    res = random.randint(2, 10)
+    z = w * res
+    
+    exp_string = f"{x} * {y} + {z} / {w}"
+    answer = x * y + res
+    rpn_exp = [f"num({x})", f"num({y})", "op(mul)", f"num({z})", f"num({w})", "op(div)", "op(add)"]
+    return exp_string, answer, json.dumps(rpn_exp)
+
+def generate_div_easy_problem():
+    """Generates an easy division problem (X / Y)."""
+    y = random.randint(2, 10)
+    res = random.randint(2, 10)
+    x = y * res
+    exp_string = f"{x} / {y}"
+    answer = res
+    rpn_exp = [f"num({x})", f"num({y})", "op(div)"]
+    return exp_string, answer, json.dumps(rpn_exp)
 
 def generate_easy_problem():
     """Generates an easy problem (X * Y)."""
@@ -87,7 +112,7 @@ def main():
         cur = conn.cursor()
 
         today = datetime.date.today()
-        total_tasks_per_day = NUM_EASY_PROBLEMS + NUM_MEDIUM_PROBLEMS + NUM_HARD_PROBLEMS
+        total_tasks_per_day = NUM_EASY_PROBLEMS + NUM_MEDIUM_PROBLEMS + NUM_HARD_PROBLEMS + NUM_DIV_EASY_PROBLEMS + NUM_DIV_HARD_PROBLEMS
 
         for day_offset in range(DAYS_FROM, DAYS_TO + 1):
             current_date = today + datetime.timedelta(days=day_offset)
@@ -99,6 +124,8 @@ def main():
                 "easy": (generate_easy_problem, NUM_EASY_PROBLEMS),
                 "medium": (generate_medium_problem, NUM_MEDIUM_PROBLEMS),
                 "hard": (generate_hard_problem, NUM_HARD_PROBLEMS),
+                "div_easy": (generate_div_easy_problem, NUM_DIV_EASY_PROBLEMS),
+                "div_hard": (generate_div_hard_problem, NUM_DIV_HARD_PROBLEMS),
             }
 
             for level, (generator, count) in problem_generators.items():
