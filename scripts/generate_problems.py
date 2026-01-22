@@ -124,8 +124,10 @@ def main():
             password=os.environ.get('DB_PASSWORD')
         )
         cur = conn.cursor()
-
-        today = datetime.date.today()
+        cur.execute("select max(date) from daily")
+        today = cur.fetchone()[0]
+        print(f"TODAY is {today}")
+        # today = datetime.date.today()
         total_tasks_per_day = NUM_EASY_PROBLEMS + NUM_MEDIUM_PROBLEMS + NUM_HARD_PROBLEMS + NUM_DIV_EASY_PROBLEMS + NUM_DIV_HARD_PROBLEMS
 
         for day_offset in range(DAYS_FROM, DAYS_TO + 1):
